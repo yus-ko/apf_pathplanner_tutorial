@@ -73,7 +73,8 @@ int main(int argc,char **argv){
 	while (ros::ok())
 	{
         
-        potbot_lib::APF apf(g_potential_field_width,				//ポテンシャル場の幅(x軸方向) [m]
+        potbot_lib::PathPlanner::APFPathPlanner apf(
+							g_potential_field_width,				//ポテンシャル場の幅(x軸方向) [m]
 							g_potential_field_height,				//ポテンシャル場の高さ(y軸方向) [m]
 							g_potential_field_resolution,			//ポテンシャル場グリッド1辺の長さ [m]
 							g_weight_attraction_field,				//ポテンシャル場における引力場の重み
@@ -104,10 +105,13 @@ int main(int argc,char **argv){
 		std::vector<std::vector<double>> path;
 		double init_yaw = potbot_lib::utility::get_Yaw(g_robot.pose.pose.orientation);
 		if (isnan(init_yaw)) init_yaw = 0;
-		potbot_lib::PathPlanner::create_on_APF(apf, path, init_yaw, g_max_path_length, g_path_search_range);
+		apf.create_path(path, init_yaw, g_max_path_length, g_path_search_range);
 
-		potbot_lib::Potential::Field filtered_field;
-		apf.potential_.info_filter(filtered_field, {potbot_lib::Potential::GridInfo::IS_PLANNED_PATH, potbot_lib::Potential::GridInfo::IS_REPULSION_FIELD_EDGE},"and");
+		potbot_lib::Potential::Field attraction_field, repulsion_field, potential_field, filtered_field;
+		apf.get_attraction_field(attraction_field);
+		apf.get_repulsion_field(repulsion_field);
+		apf.get_potential_field(potential_field);
+		potential_field.info_filter(filtered_field, {potbot_lib::Potential::GridInfo::IS_PLANNED_PATH, potbot_lib::Potential::GridInfo::IS_REPULSION_FIELD_EDGE},"and");
 
 		nav_msgs::Path path_msg;
 		for (auto point : path)
@@ -119,9 +123,9 @@ int main(int argc,char **argv){
 		}
 
         sensor_msgs::PointCloud2 attraction_field_msg, repulsion_field_msg, potential_field_msg, filtered_field_msg;
-        apf.attraction_.to_pcl2(attraction_field_msg);
-        apf.repulsion_.to_pcl2(repulsion_field_msg);
-        apf.potential_.to_pcl2(potential_field_msg);
+        attraction_field.to_pcl2(attraction_field_msg);
+        repulsion_field.to_pcl2(repulsion_field_msg);
+        potential_field.to_pcl2(potential_field_msg);
 		filtered_field.to_pcl2(filtered_field_msg);
 
         std_msgs::Header header_apf;
