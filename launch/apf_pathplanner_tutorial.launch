@@ -1,0 +1,6 @@
+<launch>
+   <group ns="tutorial">
+      <node pkg="apf_pathplanner_tutorial" name="apf_pathplanner_tutorial" type="apf_pathplanner_tutorial" output="screen"/>
+      <node pkg="rviz" type="rviz" name="rviz" required="true" args="-d $(find apf_pathplanner_tutorial)/rviz/apf_pathplanner_tutorial.rviz"/>
+   </group>
+</launch>
