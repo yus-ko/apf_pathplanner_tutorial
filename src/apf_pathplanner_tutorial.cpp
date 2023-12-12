@@ -96,16 +96,31 @@ int main(int argc,char **argv){
 			apf.set_obstacle(x,y);
 		}
 
+		double time_start = ros::Time::now().toSec();
         apf.create_attraction_field();
+		double time_create_attraction = ros::Time::now().toSec() - time_start;
+
+		time_start = ros::Time::now().toSec();
         apf.create_repulsion_field();
+		double time_create_repulsion = ros::Time::now().toSec() - time_start;
+
+		time_start = ros::Time::now().toSec();
         apf.create_potential_field();
+		double time_create_potential = ros::Time::now().toSec() - time_start;
 		
 		
 
 		std::vector<std::vector<double>> path;
 		double init_yaw = potbot_lib::utility::get_Yaw(g_robot.pose.pose.orientation);
 		if (isnan(init_yaw)) init_yaw = 0;
+
+		time_start = ros::Time::now().toSec();
 		apf.create_path(path, init_yaw, g_max_path_length, g_path_search_range);
+		double time_create_path = ros::Time::now().toSec() - time_start;
+
+		ROS_INFO("attraction:%f  repulsion:%f  potential:%f  path:%f total:%f", 
+		time_create_attraction, time_create_repulsion, time_create_potential, time_create_path,
+		time_create_attraction+ time_create_repulsion+ time_create_potential+ time_create_path);
 
 		potbot_lib::Potential::Field attraction_field, repulsion_field, potential_field, filtered_field;
 		apf.get_attraction_field(attraction_field);
@@ -123,10 +138,12 @@ int main(int argc,char **argv){
 		}
 
         sensor_msgs::PointCloud2 attraction_field_msg, repulsion_field_msg, potential_field_msg, filtered_field_msg;
+		time_start = ros::Time::now().toSec();
         attraction_field.to_pcl2(attraction_field_msg);
         repulsion_field.to_pcl2(repulsion_field_msg);
         potential_field.to_pcl2(potential_field_msg);
 		filtered_field.to_pcl2(filtered_field_msg);
+		double time_to_pcl = ros::Time::now().toSec() - time_start;
 
         std_msgs::Header header_apf;
         header_apf.frame_id = "map";
@@ -137,13 +154,22 @@ int main(int argc,char **argv){
 		filtered_field_msg.header = header_apf;
 		path_msg.header = header_apf;
 
+		time_start = ros::Time::now().toSec();
         pub_attraction_field.publish(attraction_field_msg);
         pub_repulsion_field.publish(repulsion_field_msg);
         pub_potential_field.publish(potential_field_msg);
 		pub_filtered_field.publish(filtered_field_msg);
 		pub_path.publish(path_msg);
-		
+		double time_publish = ros::Time::now().toSec() - time_start;
+
+		time_start = ros::Time::now().toSec();
 		ros::spinOnce();
+		double time_spinOnece = ros::Time::now().toSec() - time_start;
+
+		ROS_INFO("to_pcl:%f  publish:%f  spinOnece:%f  total:%f", 
+		time_to_pcl, time_publish, time_spinOnece, time_to_pcl + time_publish + time_spinOnece);
+
+		ROS_INFO("1 loop:%f", time_create_attraction+ time_create_repulsion+ time_create_potential+ time_create_path+time_to_pcl + time_publish + time_spinOnece);
 	}
 
 	return 0;
