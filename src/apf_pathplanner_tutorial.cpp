@@ -14,8 +14,8 @@ geometry_msgs::PoseWithCovarianceStamped g_robot;
 geometry_msgs::PoseStamped g_goal;
 std::vector<geometry_msgs::PointStamped> g_obstacles;
 
-double g_potential_field_width					= 12;
-double g_potential_field_height					= 12;
+double g_potential_field_rows					= 240;
+double g_potential_field_cols					= 240;
 double g_potential_field_resolution				= 0.05;
 double g_weight_attraction_field				= 0.1;
 double g_weight_repulsion_field					= 0.1;
@@ -40,8 +40,8 @@ void point_callback(const geometry_msgs::PointStamped& msg)
 
 void param_callback(const apf_pathplanner_tutorial::apf_pathplanner_tutorialConfig& param, uint32_t level)
 {
-	g_potential_field_width					= param.potential_field_width;
-	g_potential_field_height				= param.potential_field_height;
+	g_potential_field_rows					= param.potential_field_rows;
+	g_potential_field_cols					= param.potential_field_cols;
 	g_potential_field_resolution			= param.potential_field_resolution;
 	g_weight_attraction_field				= param.weight_attraction_field;
 	g_weight_repulsion_field				= param.weight_repulsion_field;
@@ -72,64 +72,66 @@ int main(int argc,char **argv){
 
 	while (ros::ok())
 	{
-        
+		potbot_lib::utility::Timer timer;
+        timer.start("1 loop");
+
         potbot_lib::PathPlanner::APFPathPlanner apf(
-							g_potential_field_width,				//ポテンシャル場の幅(x軸方向) [m]
-							g_potential_field_height,				//ポテンシャル場の高さ(y軸方向) [m]
+							g_potential_field_rows,				//ポテンシャル場の幅(x軸方向) [m]
+							g_potential_field_cols,				//ポテンシャル場の高さ(y軸方向) [m]
 							g_potential_field_resolution,			//ポテンシャル場グリッド1辺の長さ [m]
 							g_weight_attraction_field,				//ポテンシャル場における引力場の重み
 							g_weight_repulsion_field,				//ポテンシャル場における斥力場の重み
 							g_distance_threshold_repulsion_field	//斥力場を場を作る距離の閾値 [m]
-							);
-
+							);;
         apf.set_goal(	g_goal.pose.position.x, 		g_goal.pose.position.y);
         apf.set_robot(	g_robot.pose.pose.position.x, 	g_robot.pose.pose.position.y);
-		// for (auto obs : g_obstacles)
-		// {
-		// 	apf.set_obstacle(obs.point.x,				obs.point.y);
-		// }
 		
-		for (double inc = -3; inc <=3; inc += 0.05)
+		for (auto obs : g_obstacles)
 		{
-			double x = inc;
-			double y = 3;
-			apf.set_obstacle(x,y);
+			apf.set_obstacle(obs.point.x,				obs.point.y);
 		}
+		
+		// for (double inc = -3; inc <=3; inc += 0.05)
+		// {
+		// 	double y = inc;
+		// 	double x = 3;
+		// 	apf.set_obstacle(x,y);
+		// }
 
-		double time_start = ros::Time::now().toSec();
+		timer.start("attraction");
         apf.create_attraction_field();
-		double time_create_attraction = ros::Time::now().toSec() - time_start;
+		timer.stop("attraction");
 
-		time_start = ros::Time::now().toSec();
+		timer.start("repulsion");
         apf.create_repulsion_field();
-		double time_create_repulsion = ros::Time::now().toSec() - time_start;
+		timer.stop("repulsion");
 
-		time_start = ros::Time::now().toSec();
+		timer.start("potential");
         apf.create_potential_field();
-		double time_create_potential = ros::Time::now().toSec() - time_start;
+		timer.stop("potential");
 		
 		
 
-		std::vector<std::vector<double>> path;
+		std::vector<std::vector<double>> path_raw, path_interpolated;
 		double init_yaw = potbot_lib::utility::get_Yaw(g_robot.pose.pose.orientation);
 		if (isnan(init_yaw)) init_yaw = 0;
 
-		time_start = ros::Time::now().toSec();
-		apf.create_path(path, init_yaw, g_max_path_length, g_path_search_range);
-		double time_create_path = ros::Time::now().toSec() - time_start;
+		timer.start("path");
+		apf.create_path(path_raw, init_yaw, g_max_path_length, g_path_search_range);
+		apf.bezier(path_raw, path_interpolated);
+		timer.stop("path");
 
-		ROS_INFO("attraction:%f  repulsion:%f  potential:%f  path:%f total:%f", 
-		time_create_attraction, time_create_repulsion, time_create_potential, time_create_path,
-		time_create_attraction+ time_create_repulsion+ time_create_potential+ time_create_path);
+		timer.print_time();
 
 		potbot_lib::Potential::Field attraction_field, repulsion_field, potential_field, filtered_field;
 		apf.get_attraction_field(attraction_field);
 		apf.get_repulsion_field(repulsion_field);
 		apf.get_potential_field(potential_field);
-		potential_field.info_filter(filtered_field, {potbot_lib::Potential::GridInfo::IS_PLANNED_PATH, potbot_lib::Potential::GridInfo::IS_REPULSION_FIELD_EDGE},"and");
+		// potential_field.info_filter(filtered_field, {potbot_lib::Potential::GridInfo::IS_PLANNED_PATH, potbot_lib::Potential::GridInfo::IS_REPULSION_FIELD_EDGE},"and");
+		potential_field.info_filter(filtered_field, potbot_lib::Potential::GridInfo::IS_LOCAL_MINIMUM);
 
 		nav_msgs::Path path_msg;
-		for (auto point : path)
+		for (auto point : path_interpolated)
 		{
 			geometry_msgs::PoseStamped pose_msg;
 			pose_msg.pose.position.x = point[0];
@@ -138,12 +140,10 @@ int main(int argc,char **argv){
 		}
 
         sensor_msgs::PointCloud2 attraction_field_msg, repulsion_field_msg, potential_field_msg, filtered_field_msg;
-		time_start = ros::Time::now().toSec();
         attraction_field.to_pcl2(attraction_field_msg);
         repulsion_field.to_pcl2(repulsion_field_msg);
         potential_field.to_pcl2(potential_field_msg);
 		filtered_field.to_pcl2(filtered_field_msg);
-		double time_to_pcl = ros::Time::now().toSec() - time_start;
 
         std_msgs::Header header_apf;
         header_apf.frame_id = "map";
@@ -154,22 +154,17 @@ int main(int argc,char **argv){
 		filtered_field_msg.header = header_apf;
 		path_msg.header = header_apf;
 
-		time_start = ros::Time::now().toSec();
         pub_attraction_field.publish(attraction_field_msg);
         pub_repulsion_field.publish(repulsion_field_msg);
         pub_potential_field.publish(potential_field_msg);
 		pub_filtered_field.publish(filtered_field_msg);
 		pub_path.publish(path_msg);
-		double time_publish = ros::Time::now().toSec() - time_start;
 
-		time_start = ros::Time::now().toSec();
 		ros::spinOnce();
-		double time_spinOnece = ros::Time::now().toSec() - time_start;
 
-		ROS_INFO("to_pcl:%f  publish:%f  spinOnece:%f  total:%f", 
-		time_to_pcl, time_publish, time_spinOnece, time_to_pcl + time_publish + time_spinOnece);
-
-		ROS_INFO("1 loop:%f", time_create_attraction+ time_create_repulsion+ time_create_potential+ time_create_path+time_to_pcl + time_publish + time_spinOnece);
+		timer.stop("1 loop");
+		timer.print_time("1 loop");
+		
 	}
 
 	return 0;
