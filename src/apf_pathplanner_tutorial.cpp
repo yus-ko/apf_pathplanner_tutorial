@@ -22,6 +22,8 @@ double g_weight_repulsion_field					= 0.1;
 double g_distance_threshold_repulsion_field		= 0.3;
 double g_max_path_length						= 6.0;
 size_t g_path_search_range						= 1;
+std::string g_potential_field_filter_mode		= "and";
+std::vector<size_t> g_potential_field_filter_terms;
 
 void inipose_callback(const geometry_msgs::PoseWithCovarianceStamped& msg)
 {
@@ -48,6 +50,17 @@ void param_callback(const apf_pathplanner_tutorial::apf_pathplanner_tutorialConf
 	g_distance_threshold_repulsion_field	= param.distance_threshold_repulsion_field;
 	g_max_path_length						= param.max_path_length;
 	g_path_search_range						= param.path_search_range;
+
+	g_potential_field_filter_mode			= param.potential_field_grid_filter;
+	g_potential_field_filter_terms.clear();
+	if (param.goal)							g_potential_field_filter_terms.push_back(potbot_lib::Potential::GridInfo::IS_GOAL);
+	if (param.robot)						g_potential_field_filter_terms.push_back(potbot_lib::Potential::GridInfo::IS_ROBOT);
+	if (param.obstacle)						g_potential_field_filter_terms.push_back(potbot_lib::Potential::GridInfo::IS_OBSTACLE);
+	if (param.repulsion_inside)				g_potential_field_filter_terms.push_back(potbot_lib::Potential::GridInfo::IS_REPULSION_FIELD_INSIDE);
+	if (param.repulsion_edge)				g_potential_field_filter_terms.push_back(potbot_lib::Potential::GridInfo::IS_REPULSION_FIELD_EDGE);
+	if (param.path)							g_potential_field_filter_terms.push_back(potbot_lib::Potential::GridInfo::IS_PLANNED_PATH);
+	if (param.around_goal)					g_potential_field_filter_terms.push_back(potbot_lib::Potential::GridInfo::IS_AROUND_GOAL);
+	if (param.local_minimum)				g_potential_field_filter_terms.push_back(potbot_lib::Potential::GridInfo::IS_LOCAL_MINIMUM);
 }
 
 int main(int argc,char **argv){
@@ -55,15 +68,16 @@ int main(int argc,char **argv){
 
 	ros::NodeHandle nh;
 
-	ros::Publisher pub_attraction_field	= nh.advertise<sensor_msgs::PointCloud2>("field/attraction", 1);
-	ros::Publisher pub_repulsion_field	= nh.advertise<sensor_msgs::PointCloud2>("field/repulsion", 1);
-	ros::Publisher pub_potential_field	= nh.advertise<sensor_msgs::PointCloud2>("field/potential", 1);
-	ros::Publisher pub_filtered_field	= nh.advertise<sensor_msgs::PointCloud2>("field/filtered", 1);
-	ros::Publisher pub_path				= nh.advertise<nav_msgs::Path>("path", 1);
+	ros::Publisher pub_attraction_field		= nh.advertise<sensor_msgs::PointCloud2>("field/attraction", 1);
+	ros::Publisher pub_repulsion_field		= nh.advertise<sensor_msgs::PointCloud2>("field/repulsion", 1);
+	ros::Publisher pub_potential_field		= nh.advertise<sensor_msgs::PointCloud2>("field/potential", 1);
+	ros::Publisher pub_filtered_field		= nh.advertise<sensor_msgs::PointCloud2>("field/filtered", 1);
+	ros::Publisher pub_path_raw				= nh.advertise<nav_msgs::Path>("path/raw", 1);
+	ros::Publisher pub_path_interpolated	= nh.advertise<nav_msgs::Path>("path/interpolated", 1);
 
-	ros::Subscriber sub_inipose			= nh.subscribe("initialpose",1,inipose_callback);
-	ros::Subscriber sub_goal			= nh.subscribe("move_base_simple/goal",1,goal_callback);
-	ros::Subscriber sub_point			= nh.subscribe("clicked_point",1,point_callback);
+	ros::Subscriber sub_inipose				= nh.subscribe("initialpose",1,inipose_callback);
+	ros::Subscriber sub_goal				= nh.subscribe("move_base_simple/goal",1,goal_callback);
+	ros::Subscriber sub_point				= nh.subscribe("clicked_point",1,point_callback);
 
 	dynamic_reconfigure::Server<apf_pathplanner_tutorial::apf_pathplanner_tutorialConfig> server;
 	dynamic_reconfigure::Server<apf_pathplanner_tutorial::apf_pathplanner_tutorialConfig>::CallbackType f;
@@ -76,13 +90,13 @@ int main(int argc,char **argv){
         timer.start("1 loop");
 
         potbot_lib::PathPlanner::APFPathPlanner apf(
-							g_potential_field_rows,				//ポテンシャル場の幅(x軸方向) [m]
-							g_potential_field_cols,				//ポテンシャル場の高さ(y軸方向) [m]
+							g_potential_field_rows,					//ポテンシャル場の幅(x軸方向) [m]
+							g_potential_field_cols,					//ポテンシャル場の高さ(y軸方向) [m]
 							g_potential_field_resolution,			//ポテンシャル場グリッド1辺の長さ [m]
 							g_weight_attraction_field,				//ポテンシャル場における引力場の重み
 							g_weight_repulsion_field,				//ポテンシャル場における斥力場の重み
 							g_distance_threshold_repulsion_field	//斥力場を場を作る距離の閾値 [m]
-							);;
+							);
         apf.set_goal(	g_goal.pose.position.x, 		g_goal.pose.position.y);
         apf.set_robot(	g_robot.pose.pose.position.x, 	g_robot.pose.pose.position.y);
 		
@@ -90,7 +104,7 @@ int main(int argc,char **argv){
 		{
 			apf.set_obstacle(obs.point.x,				obs.point.y);
 		}
-		
+
 		// for (double inc = -3; inc <=3; inc += 0.05)
 		// {
 		// 	double y = inc;
@@ -98,19 +112,9 @@ int main(int argc,char **argv){
 		// 	apf.set_obstacle(x,y);
 		// }
 
-		timer.start("attraction");
-        apf.create_attraction_field();
-		timer.stop("attraction");
-
-		timer.start("repulsion");
-        apf.create_repulsion_field();
-		timer.stop("repulsion");
-
 		timer.start("potential");
         apf.create_potential_field();
 		timer.stop("potential");
-		
-		
 
 		std::vector<std::vector<double>> path_raw, path_interpolated;
 		double init_yaw = potbot_lib::utility::get_Yaw(g_robot.pose.pose.orientation);
@@ -128,15 +132,22 @@ int main(int argc,char **argv){
 		apf.get_repulsion_field(repulsion_field);
 		apf.get_potential_field(potential_field);
 		// potential_field.info_filter(filtered_field, {potbot_lib::Potential::GridInfo::IS_PLANNED_PATH, potbot_lib::Potential::GridInfo::IS_REPULSION_FIELD_EDGE},"and");
-		potential_field.info_filter(filtered_field, potbot_lib::Potential::GridInfo::IS_LOCAL_MINIMUM);
+		potential_field.info_filter(filtered_field, g_potential_field_filter_terms, g_potential_field_filter_mode);
 
-		nav_msgs::Path path_msg;
+		nav_msgs::Path path_msg_raw, path_msg_interpolated;
+		for (auto point : path_raw)
+		{
+			geometry_msgs::PoseStamped pose_msg;
+			pose_msg.pose.position.x = point[0];
+			pose_msg.pose.position.y = point[1];
+			path_msg_raw.poses.push_back(pose_msg);
+		}
 		for (auto point : path_interpolated)
 		{
 			geometry_msgs::PoseStamped pose_msg;
 			pose_msg.pose.position.x = point[0];
 			pose_msg.pose.position.y = point[1];
-			path_msg.poses.push_back(pose_msg);
+			path_msg_interpolated.poses.push_back(pose_msg);
 		}
 
         sensor_msgs::PointCloud2 attraction_field_msg, repulsion_field_msg, potential_field_msg, filtered_field_msg;
@@ -146,19 +157,21 @@ int main(int argc,char **argv){
 		filtered_field.to_pcl2(filtered_field_msg);
 
         std_msgs::Header header_apf;
-        header_apf.frame_id = "map";
-        header_apf.stamp = ros::Time::now();
-        attraction_field_msg.header = header_apf;
-        repulsion_field_msg.header = header_apf;
-        potential_field_msg.header = header_apf;
-		filtered_field_msg.header = header_apf;
-		path_msg.header = header_apf;
+        header_apf.frame_id				= "map";
+        header_apf.stamp				= ros::Time::now();
+        attraction_field_msg.header		= header_apf;
+        repulsion_field_msg.header		= header_apf;
+        potential_field_msg.header		= header_apf;
+		filtered_field_msg.header		= header_apf;
+		path_msg_raw.header				= header_apf;
+		path_msg_interpolated.header	= header_apf;
 
         pub_attraction_field.publish(attraction_field_msg);
         pub_repulsion_field.publish(repulsion_field_msg);
         pub_potential_field.publish(potential_field_msg);
 		pub_filtered_field.publish(filtered_field_msg);
-		pub_path.publish(path_msg);
+		pub_path_raw.publish(path_msg_raw);
+		pub_path_interpolated.publish(path_msg_interpolated);
 
 		ros::spinOnce();
 
@@ -169,3 +182,62 @@ int main(int argc,char **argv){
 
 	return 0;
 }
+
+// #include <iostream>
+// #include <vector>
+// #include <cmath>
+// #include <algorithm>
+
+// struct Point {
+//     double x, y;
+
+//     // コンストラクタ
+//     Point(double x, double y) : x(x), y(y) {}
+
+//     // 極角を計算するメソッド
+//     double polarAngle() const {
+//         return std::atan2(y, x);
+//     }
+// };
+
+// // 極角に基づいて点をソートする比較関数
+// bool compareByPolarAngle(const Point& a, const Point& b) {
+//     return a.polarAngle() < b.polarAngle();
+// }
+
+// // 閉区間の外周座標が1周するように座標列を並べ替える関数
+// void reorderCoordinates(std::vector<Point>& coordinates) {
+//     // 極角に基づいて座標をソート
+//     std::sort(coordinates.begin(), coordinates.end(), compareByPolarAngle);
+// }
+
+// int main() {
+//     // 2次元直交座標列を作成
+//     std::vector<Point> coordinates = {
+//         {0.0, 1.0},
+//         {-0.5, -0.5},
+//         {1.0, 0.0},
+//         {-0.5, 0.5},
+//         {-1.0, 0.0},
+//         {0.5, 0.5},
+//         {0.0, -1.0},
+//         {0.5, -0.5}
+//     };
+
+//     // 座標列を表示
+//     std::cout << "Before reordering:" << std::endl;
+//     for (const auto& point : coordinates) {
+//         std::cout << "(" << point.x << ", " << point.y << ")" << std::endl;
+//     }
+
+//     // 座標列を並べ替え
+//     reorderCoordinates(coordinates);
+
+//     // 並べ替え後の座標列を表示
+//     std::cout << "\nAfter reordering:" << std::endl;
+//     for (const auto& point : coordinates) {
+//         std::cout << "(" << point.x << ", " << point.y << ")" << std::endl;
+//     }
+
+//     return 0;
+// }
