@@ -4,6 +4,7 @@ project(apf_pathplanner_tutorial)
 find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   potbot_lib
+  potbot_msgs
 )
 
 generate_dynamic_reconfigure_options(
