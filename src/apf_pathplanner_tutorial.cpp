@@ -105,13 +105,6 @@ int main(int argc,char **argv){
 			apf.set_obstacle(obs.point.x,				obs.point.y);
 		}
 
-		// for (double inc = -3; inc <=3; inc += 0.05)
-		// {
-		// 	double y = inc;
-		// 	double x = 3;
-		// 	apf.set_obstacle(x,y);
-		// }
-
 		timer.start("potential");
         apf.create_potential_field();
 		timer.stop("potential");
@@ -182,62 +175,3 @@ int main(int argc,char **argv){
 
 	return 0;
 }
-
-// #include <iostream>
-// #include <vector>
-// #include <cmath>
-// #include <algorithm>
-
-// struct Point {
-//     double x, y;
-
-//     // コンストラクタ
-//     Point(double x, double y) : x(x), y(y) {}
-
-//     // 極角を計算するメソッド
-//     double polarAngle() const {
-//         return std::atan2(y, x);
-//     }
-// };
-
-// // 極角に基づいて点をソートする比較関数
-// bool compareByPolarAngle(const Point& a, const Point& b) {
-//     return a.polarAngle() < b.polarAngle();
-// }
-
-// // 閉区間の外周座標が1周するように座標列を並べ替える関数
-// void reorderCoordinates(std::vector<Point>& coordinates) {
-//     // 極角に基づいて座標をソート
-//     std::sort(coordinates.begin(), coordinates.end(), compareByPolarAngle);
-// }
-
-// int main() {
-//     // 2次元直交座標列を作成
-//     std::vector<Point> coordinates = {
-//         {0.0, 1.0},
-//         {-0.5, -0.5},
-//         {1.0, 0.0},
-//         {-0.5, 0.5},
-//         {-1.0, 0.0},
-//         {0.5, 0.5},
-//         {0.0, -1.0},
-//         {0.5, -0.5}
-//     };
-
-//     // 座標列を表示
-//     std::cout << "Before reordering:" << std::endl;
-//     for (const auto& point : coordinates) {
-//         std::cout << "(" << point.x << ", " << point.y << ")" << std::endl;
-//     }
-
-//     // 座標列を並べ替え
-//     reorderCoordinates(coordinates);
-
-//     // 並べ替え後の座標列を表示
-//     std::cout << "\nAfter reordering:" << std::endl;
-//     for (const auto& point : coordinates) {
-//         std::cout << "(" << point.x << ", " << point.y << ")" << std::endl;
-//     }
-
-//     return 0;
-// }
