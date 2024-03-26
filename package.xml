@@ -6,4 +6,5 @@
   <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
   <license>TODO</license>
   <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>potbot_lib</build_depend>
 </package>
