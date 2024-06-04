@@ -8,7 +8,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PointStamped.h>
 #include <dynamic_reconfigure/server.h>
-#include <apf_pathplanner_tutorial/apf_pathplanner_tutorialConfig.h>
+#include <apf_pathplanner_tutorial/APFPathPlannerTutorialConfig.h>
 
 geometry_msgs::PoseWithCovarianceStamped g_robot;
 geometry_msgs::PoseStamped g_goal;
@@ -40,7 +40,7 @@ void point_callback(const geometry_msgs::PointStamped& msg)
     g_obstacles.push_back(msg);
 }
 
-void param_callback(const apf_pathplanner_tutorial::apf_pathplanner_tutorialConfig& param, uint32_t level)
+void param_callback(const apf_pathplanner_tutorial::APFPathPlannerTutorialConfig& param, uint32_t level)
 {
 	g_potential_field_rows					= param.potential_field_rows;
 	g_potential_field_cols					= param.potential_field_cols;
@@ -79,8 +79,8 @@ int main(int argc,char **argv){
 	ros::Subscriber sub_goal				= nh.subscribe("move_base_simple/goal",1,goal_callback);
 	ros::Subscriber sub_point				= nh.subscribe("clicked_point",1,point_callback);
 
-	dynamic_reconfigure::Server<apf_pathplanner_tutorial::apf_pathplanner_tutorialConfig> server;
-	dynamic_reconfigure::Server<apf_pathplanner_tutorial::apf_pathplanner_tutorialConfig>::CallbackType f;
+	dynamic_reconfigure::Server<apf_pathplanner_tutorial::APFPathPlannerTutorialConfig> server;
+	dynamic_reconfigure::Server<apf_pathplanner_tutorial::APFPathPlannerTutorialConfig>::CallbackType f;
 	f = boost::bind(param_callback, _1, _2);
 	server.setCallback(f);
 
