@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
     marker.color.g = 0.5;
     marker.color.b = 0.5;
     marker.color.a = 1.0;
-    marker.pose = potbot_lib::utility::get_Pose(0.5,0,0,0,0,0);
+    marker.pose = potbot_lib::utility::get_Pose(0,0,0,0,0,0);
 
     // Attach the sphere marker to the interactive marker
     visualization_msgs::InteractiveMarkerControl control;
@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     visualization_msgs::InteractiveMarkerControl move_control;
     move_control.name = "move_x";
     move_control.orientation = potbot_lib::utility::get_Pose(0,0,0,0,M_PI_2,0).orientation;
-    move_control.interaction_mode = visualization_msgs::InteractiveMarkerControl::MOVE_ROTATE;
+    move_control.interaction_mode = visualization_msgs::InteractiveMarkerControl::MOVE_PLANE;
     int_marker.controls.push_back(move_control);
 
     // Add the interactive marker to the server
