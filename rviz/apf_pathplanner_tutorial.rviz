@@ -287,6 +287,27 @@ Visualization Manager:
       Topic: clicked_point
       Unreliable: false
       Value: true
+    - Class: rviz/InteractiveMarkers
+      Enable Transparency: true
+      Enabled: true
+      Name: InteractiveMarkers
+      Show Axes: false
+      Show Descriptions: true
+      Show Visual Aids: false
+      Update Topic: simple_marker/update
+      Value: true
+    - Class: rviz/Group
+      Displays:
+        - Class: rviz/MarkerArray
+          Enabled: true
+          Marker Topic: debug/loop_edges
+          Name: LoopEdges
+          Namespaces:
+            "": true
+          Queue Size: 100
+          Value: true
+      Enabled: true
+      Name: Debug
   Enabled: true
   Global Options:
     Background Color: 211; 215; 207
@@ -327,8 +348,8 @@ Visualization Manager:
       Scale: 104.94938659667969
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
-      X: 0
-      Y: 0
+      X: 1.6304186582565308
+      Y: -1.3326783180236816
     Saved:
       - Class: rviz/Orbit
         Distance: 10.191848754882812
