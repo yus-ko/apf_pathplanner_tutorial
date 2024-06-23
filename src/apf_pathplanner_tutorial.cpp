@@ -1,7 +1,7 @@
 #include <ros/ros.h>
-#include <potbot_lib/PotentialField.h>
-#include <potbot_lib/PathPlanner.h>
-#include <potbot_lib/Utility.h>
+#include <potbot_lib/artificial_potential_field.h>
+#include <potbot_lib/apf_path_planner.h>
+#include <potbot_lib/utility_ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <nav_msgs/Path.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
@@ -20,7 +20,8 @@ private:
 	geometry_msgs::PoseStamped goal_;
 	std::vector<geometry_msgs::PointStamped> obstacles_;
 
-	potbot_lib::PathPlanner::APFPathPlanner *apf_;
+	potbot_lib::path_planner::APFPathPlanner* pp_;
+	potbot_lib::ArtificialPotentialField* apf_;
 
 	double potential_field_rows_					= 240;
 	double potential_field_cols_					= 240;
@@ -84,7 +85,8 @@ APFPathPlanner::APFPathPlanner()
 		potbot_lib::utility::Timer timer;
         timer.start("1 loop");
 
-        apf_ = new potbot_lib::PathPlanner::APFPathPlanner(
+		
+		apf_ = new potbot_lib::ArtificialPotentialField(
 							potential_field_rows_,					//ポテンシャル場の幅(x軸方向) [m]
 							potential_field_cols_,					//ポテンシャル場の高さ(y軸方向) [m]
 							potential_field_resolution_,			//ポテンシャル場グリッド1辺の長さ [m]
@@ -92,15 +94,28 @@ APFPathPlanner::APFPathPlanner()
 							weight_repulsion_field_,				//ポテンシャル場における斥力場の重み
 							distance_threshold_repulsion_field_		//斥力場を場を作る距離の閾値 [m]
 							);
-        apf_->set_goal(	goal_.pose.position.x, 		goal_.pose.position.y);
-        apf_->set_robot(	robot_.pose.pose.position.x, 	robot_.pose.pose.position.y);
+        pp_ = new potbot_lib::path_planner::APFPathPlanner( apf_);
+        apf_->setGoal(	goal_.pose.position.x, 		goal_.pose.position.y);
+        apf_->setRobot(	robot_.pose.pose.position.x, 	robot_.pose.pose.position.y);
 		
-		apf_->set_obstacle(obstacles_);
+		for (const auto&  o:obstacles_)
+		{
+			Eigen::Vector2d vec;
+			vec << o.point.x, o.point.y;
+			apf_->setObstacle(vec);
+		}
+		// apf_->setObstacle(obstacles_);
 
-		apf_->set_obstacle(interactive_markers_);
+		for (const auto&  o:interactive_markers_)
+		{
+			Eigen::Vector2d vec;
+			vec << o.pose.position.x; o.pose.position.y;
+			apf_->setObstacle(vec);
+		}
+		// apf_->setObstacle(interactive_markers_);
 
 		timer.start("potential");
-        apf_->create_potential_field();
+        apf_->createPotentialField();
 		timer.stop("potential");
 
 		std::vector<std::vector<double>> path_raw, path_interpolated;
@@ -110,24 +125,24 @@ APFPathPlanner::APFPathPlanner()
 		timer.start("path");
 		if (path_weight_potential_ == 0.0 && path_weight_pose_ == 0.0)
 		{
-			apf_->create_path(path_raw, init_yaw, max_path_length_, path_search_range_);
+			pp_->createPath(path_raw, init_yaw, max_path_length_, path_search_range_);
 		}
 		else
 		{
-			apf_->create_path_with_weight(path_raw, init_yaw, max_path_length_, path_search_range_, path_weight_potential_, path_weight_pose_);
+			pp_->createPathWithWeight(path_raw, init_yaw, max_path_length_, path_search_range_, path_weight_potential_, path_weight_pose_);
 		}
 		
-		apf_->bezier(path_raw, path_interpolated);
+		pp_->bezier(path_raw, path_interpolated);
 		timer.stop("path");
 
 		timer.print_time();
 
-		potbot_lib::Potential::Field attraction_field, repulsion_field, potential_field, filtered_field;
-		apf_->get_attraction_field(attraction_field);
-		apf_->get_repulsion_field(repulsion_field);
-		apf_->get_potential_field(potential_field);
+		potbot_lib::potential::Field attraction_field, repulsion_field, potential_field, filtered_field;
+		apf_->getAttractionField(attraction_field);
+		apf_->getAepulsionField(repulsion_field);
+		apf_->getPotentialField(potential_field);
 		// potential_field.info_filter(filtered_field, {potbot_lib::Potential::GridInfo::IS_PLANNED_PATH, potbot_lib::Potential::GridInfo::IS_REPULSION_FIELD_EDGE},"and");
-		potential_field.info_filter(filtered_field, potential_field_filter_terms_, potential_field_filter_mode_);
+		potential_field.infoFilter(filtered_field, potential_field_filter_terms_, potential_field_filter_mode_);
 
 		nav_msgs::Path path_msg_raw, path_msg_interpolated;
 		for (auto point : path_raw)
@@ -146,13 +161,13 @@ APFPathPlanner::APFPathPlanner()
 		}
 
         sensor_msgs::PointCloud2 attraction_field_msg, repulsion_field_msg, potential_field_msg, filtered_field_msg;
-        attraction_field.to_pcl2(attraction_field_msg);
-        repulsion_field.to_pcl2(repulsion_field_msg);
-        potential_field.to_pcl2(potential_field_msg);
-		filtered_field.to_pcl2(filtered_field_msg);
+		potbot_lib::utility::field_to_pcl2(attraction_field, attraction_field_msg);
+		potbot_lib::utility::field_to_pcl2(repulsion_field, repulsion_field_msg);
+		potbot_lib::utility::field_to_pcl2(potential_field, potential_field_msg);
+		potbot_lib::utility::field_to_pcl2(filtered_field, filtered_field_msg);
 
 		visualization_msgs::MarkerArray loop_edges_msg;
-		apf_->get_loop_edges(loop_edges_msg);
+		apf_->getLoopEdges(loop_edges_msg);
 
         std_msgs::Header header_apf;
         header_apf.frame_id				= "map";
