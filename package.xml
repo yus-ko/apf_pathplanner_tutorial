@@ -9,4 +9,6 @@
   <build_depend>interactive_markers</build_depend>
   <exec_depend>interactive_markers</exec_depend>
   <build_depend>potbot_lib</build_depend>
+  <build_depend>potbot_plugin</build_depend>
+  <depend>potbot_base</depend>
 </package>
