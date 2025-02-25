@@ -150,6 +150,7 @@ MarkerPathPlanner::MarkerPathPlanner(tf2_ros::Buffer* tf) : loader_("potbot_base
         timer.start("1 loop");
 
 		nav_msgs::Odometry nav_robot;
+		nav_robot.header = goal_.header;
 		nav_robot.pose = robot_.pose;
 		planner_->setRobot(nav_robot);
 		planner_->setTargetPose(goal_);
